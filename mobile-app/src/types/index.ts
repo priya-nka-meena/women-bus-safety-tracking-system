@@ -1,15 +1,14 @@
 export interface User {
   id: string;
-  email: string;
   name: string;
+  email: string;
   phone: string;
-  role: 'passenger' | 'driver' | 'admin';
-  aadhaarNumber?: string;
-  licenseNumber?: string;
-  assignedBusNumber?: string;
-  emergencyContacts?: EmergencyContact[];
-  createdAt: Date;
-  updatedAt: Date;
+  role: 'passenger' | 'driver' | 'admin' | null;
+  emergencyContacts: EmergencyContact[];
+  licenseNumber?: string | null;
+  assignedBusNumber?: string | null;
+  createdAt: Date | any;
+  updatedAt: Date | any;
 }
 
 export interface EmergencyContact {

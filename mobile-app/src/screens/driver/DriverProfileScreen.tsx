@@ -9,7 +9,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { AuthService } from '../../services/authService';
+import AuthService from '../../services/authService';
 import { BusService } from '../../services/busService';
 import { User, Bus } from '../../types';
 

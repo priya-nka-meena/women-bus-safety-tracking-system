@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import AppNavigator from './src/navigation/AppNavigator';
-import { AuthService } from './src/services/authService';
+import AuthService from './src/services/authService';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

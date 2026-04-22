@@ -8,7 +8,8 @@ import {
   query, 
   where, 
   orderBy, 
-  limit 
+  limit,
+  serverTimestamp
 } from 'firebase/firestore';
 import { firestore } from './firebase';
 import { Bus, Journey, NearbyBus, LocationData } from '../types';
@@ -170,13 +171,27 @@ export class BusService {
         throw new Error('Bus not found');
       }
 
-      const newCount = Math.max(0, bus.femalePassengerCount + countChange);
-      
-      await updateDoc(doc(firestore, 'buses', bus.id), {
-        femalePassengerCount: newCount
+      const busRef = doc(firestore, 'buses', busNumber);
+      await updateDoc(busRef, {
+        femalePassengerCount: Math.max(0, bus.femalePassengerCount + countChange),
+        updatedAt: serverTimestamp()
       });
     } catch (error) {
-      throw new Error(`Failed to update passenger count: ${error}`);
+      console.error('Error updating passenger count:', error);
+      throw error;
+    }
+  }
+
+  static async updateBusStatus(busNumber: string, isActive: boolean): Promise<void> {
+    try {
+      const busRef = doc(firestore, 'buses', busNumber);
+      await updateDoc(busRef, {
+        isActive,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error('Error updating bus status:', error);
+      throw error;
     }
   }
 

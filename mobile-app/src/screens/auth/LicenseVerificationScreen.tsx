@@ -12,7 +12,7 @@ import {
   ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { AuthService } from '../../services/authService';
+import AuthService from '../../services/authService';
 
 interface Props {
   navigation: any;
@@ -27,6 +27,8 @@ const LicenseVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
   const [licenseData, setLicenseData] = useState<any>(null);
 
   const handleVerifyLicense = async () => {
+    console.log("DRIVER LICENSE VERIFICATION START:", licenseNumber);
+    
     if (!licenseNumber || licenseNumber.length < 8) {
       Alert.alert('Error', 'Please enter a valid license number');
       return;
@@ -34,24 +36,29 @@ const LicenseVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
 
     setLoading(true);
     try {
-      const data = await AuthService.verifyLicense(licenseNumber);
-      if (!data) {
-        Alert.alert('Verification Failed', 'License number not found in database');
+      const data = await AuthService.verifyDriverLicense(licenseNumber);
+      console.log("DRIVER LICENSE VERIFICATION RESULT:", data);
+      
+      if (!data.valid) {
+        Alert.alert('Verification Failed', 'License not found or not verified. Only verified male drivers are allowed.');
         return;
       }
 
       // Check if license is expired
-      const expiryDate = new Date(data.expiryDate);
-      const today = new Date();
-      if (expiryDate < today) {
-        Alert.alert('Verification Failed', 'License has expired');
-        return;
+      if (data.expiryDate) {
+        const expiryDate = new Date(data.expiryDate);
+        const today = new Date();
+        if (expiryDate < today) {
+          Alert.alert('Verification Failed', 'License has expired');
+          return;
+        }
       }
 
       setLicenseData(data);
       setVerified(true);
-      Alert.alert('Success', 'License verified successfully!');
+      Alert.alert('Success', `License verified successfully! Welcome ${data.name}`);
     } catch (error) {
+      console.log("DRIVER LICENSE VERIFICATION ERROR:", error);
       Alert.alert('Error', error instanceof Error ? error.message : 'Verification failed');
     } finally {
       setLoading(false);
@@ -66,12 +73,7 @@ const LicenseVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
 
     setLoading(true);
     try {
-      const user = await AuthService.signUp(userData.email, userData.password, {
-        name: userData.name,
-        phone: userData.phone,
-        role: role,
-        licenseNumber: licenseNumber
-      });
+      const user = await AuthService.signUp(userData.email, userData.password, userData.name, 'driver', undefined, licenseNumber);
 
       Alert.alert('Success', 'Account created successfully! Please wait for admin to assign a bus.', [
         {

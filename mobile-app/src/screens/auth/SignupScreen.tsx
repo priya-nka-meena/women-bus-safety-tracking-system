@@ -12,7 +12,7 @@ import {
   ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { AuthService } from '../../services/authService';
+import AuthService from '../../services/authService';
 
 interface Props {
   navigation: any;
@@ -29,23 +29,29 @@ const SignupScreen: React.FC<Props> = ({ navigation }) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSignup = async () => {
+    console.log("SIGNUP ATTEMPT:", { name, email, phone });
+    
     if (!name || !email || !phone || !password || !confirmPassword) {
+      console.log("SIGNUP ERROR: Empty fields");
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
     if (password !== confirmPassword) {
+      console.log("SIGNUP ERROR: Passwords do not match");
       Alert.alert('Error', 'Passwords do not match');
       return;
     }
 
     if (password.length < 6) {
+      console.log("SIGNUP ERROR: Password too short");
       Alert.alert('Error', 'Password must be at least 6 characters');
       return;
     }
 
     setLoading(true);
     try {
+      console.log("NAVIGATING TO ROLE SELECTION...");
       // Navigate to role selection instead of creating account directly
       navigation.navigate('RoleSelection', {
         userData: {
@@ -55,8 +61,10 @@ const SignupScreen: React.FC<Props> = ({ navigation }) => {
           password
         }
       });
-    } catch (error) {
-      Alert.alert('Signup Failed', error instanceof Error ? error.message : 'An error occurred');
+    } catch (error: any) {
+      console.log("SIGNUP ERROR:", error);
+      console.log("ERROR MESSAGE:", error.message);
+      Alert.alert('Signup Failed', error.message);
     } finally {
       setLoading(false);
     }

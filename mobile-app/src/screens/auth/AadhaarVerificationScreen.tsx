@@ -12,7 +12,7 @@ import {
   ScrollView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { AuthService } from '../../services/authService';
+import AuthService from '../../services/authService';
 import { EmergencyContact } from '../../types';
 
 interface Props {
@@ -83,7 +83,10 @@ const AadhaarVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const handleCompleteRegistration = async () => {
+    console.log("COMPLETE REGISTRATION START:", { verified, contactsCount: emergencyContacts.length });
+    
     if (!verified) {
+      console.log("REGISTRATION ERROR: Aadhaar not verified");
       Alert.alert('Error', 'Please verify your Aadhaar first');
       return;
     }
@@ -94,28 +97,39 @@ const AadhaarVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
     );
 
     if (validContacts.length === 0) {
+      console.log("REGISTRATION ERROR: No emergency contacts");
       Alert.alert('Error', 'Please add at least one emergency contact');
       return;
     }
 
     setLoading(true);
     try {
-      const user = await AuthService.signUp(userData.email, userData.password, {
-        name: userData.name,
+      console.log("CREATING USER ACCOUNT...");
+      const user = await AuthService.signUp(userData.email, userData.password, userData.name, 'passenger', aadhaarNumber);
+      console.log("USER ACCOUNT CREATED:", user.uid);
+
+      // Update user document with additional info
+      console.log("UPDATING USER DOCUMENT WITH ADDITIONAL INFO...");
+      await AuthService.updateUser(user.uid, {
+        role: 'passenger',
         phone: userData.phone,
-        role: role,
-        aadhaarNumber: aadhaarNumber,
         emergencyContacts: validContacts
       });
 
+      console.log("REGISTRATION COMPLETE");
       Alert.alert('Success', 'Account created successfully!', [
         {
           text: 'OK',
-          onPress: () => navigation.replace('PassengerTabs')
+          onPress: () => {
+            console.log("NAVIGATING TO PASSENGER TABS");
+            navigation.replace('PassengerTabs');
+          }
         }
       ]);
-    } catch (error) {
-      Alert.alert('Registration Failed', error instanceof Error ? error.message : 'An error occurred');
+    } catch (error: any) {
+      console.log("REGISTRATION ERROR:", error);
+      console.log("ERROR MESSAGE:", error.message);
+      Alert.alert('Registration Failed', error.message);
     } finally {
       setLoading(false);
     }

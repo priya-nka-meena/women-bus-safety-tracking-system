@@ -9,7 +9,7 @@ import {
   RefreshControl
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { AuthService } from '../../services/authService';
+import AuthService from '../../services/authService';
 import { BusService } from '../../services/busService';
 import { LocationService } from '../../services/locationService';
 import { User, Bus, LocationData } from '../../types';

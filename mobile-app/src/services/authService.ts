@@ -1,140 +1,285 @@
-import { 
+import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
+  onAuthStateChanged,
+  updateProfile,
   User as FirebaseUser
-} from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { auth, firestore } from './firebase';
-import { User, AadhaarData, DriverLicenseData } from '../types';
+} from "firebase/auth";
 
-// Simulated databases
-const aadhaarDatabase: AadhaarData[] = [
-  {
-    aadhaarNumber: "123456789012",
-    name: "Priya meena",
-    gender: "Female",
-    dateOfBirth: "1995-06-15"
-  },
-  {
-    aadhaarNumber: "987654321098",
-    name: "Anita Patel",
-    gender: "Female",
-    dateOfBirth: "1998-03-22"
-  },
-  {
-    aadhaarNumber: "456789012345",
-    name: "Rahul Kumar",
-    gender: "Male",
-    dateOfBirth: "1992-11-08"
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  serverTimestamp
+} from "firebase/firestore";
+
+import { auth, db } from "../../firebaseConfig";
+import { User } from "../types";
+
+class AuthService {
+
+  // =========================
+  // 🔥 SIGN UP (FIXED)
+  // =========================
+  async signUp(
+    email: string,
+    password: string,
+    name: string,
+    role: "passenger" | "driver",
+    aadhaarNumber?: string,
+    licenseNumber?: string
+  ): Promise<FirebaseUser> {
+    console.log("SIGNUP:", { email, role });
+
+    if (!role) throw new Error("Role is required");
+
+    // Aadhaar only for passenger
+    if (role === "passenger") {
+      if (!aadhaarNumber) throw new Error("Aadhaar required for passenger");
+
+      const res = await this.verifyAadhaar(aadhaarNumber);
+
+      if (!res.valid) {
+        throw new Error("Only VERIFIED FEMALE users allowed");
+      }
+    }
+
+    // License verification for driver
+    if (role === "driver") {
+      if (!licenseNumber) throw new Error("License required for driver");
+
+      const res = await this.verifyDriverLicense(licenseNumber);
+
+      if (!res.valid) {
+        throw new Error("Only VERIFIED MALE drivers allowed");
+      }
+    }
+
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
+
+    const firebaseUser = userCredential.user;
+
+    await updateProfile(firebaseUser, { displayName: name });
+
+    const userData: User = {
+      id: firebaseUser.uid,
+      email,
+      name,
+      role,
+      phone: "",
+      emergencyContacts: [],
+      licenseNumber: role === "driver" ? licenseNumber : undefined,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    await setDoc(doc(db, "users", firebaseUser.uid), userData);
+
+    console.log("USER CREATED:", role);
+
+    return firebaseUser;
   }
-];
 
-const licenseDatabase: DriverLicenseData[] = [
-  {
-    licenseNumber: "DL2023001",
-    name: "Ramesh Singh",
-    gender: "Male",
-    expiryDate: "2028-12-31",
-    vehicleType: "Bus"
-  },
-  {
-    licenseNumber: "DL2023002",
-    name: "Suresh Kumar",
-    gender: "Male",
-    expiryDate: "2029-06-30",
-    vehicleType: "Bus"
-  },
-  {
-    licenseNumber: "DL2023003",
-    name: "Mahesh Patel",
-    gender: "Male",
-    expiryDate: "2027-09-15",
-    vehicleType: "Bus"
-  }
-];
+  // =========================
+  // LOGIN (FIXED)
+  // =========================
+  async signIn(email: string, password: string): Promise<User> {
+    console.log("LOGIN:", email);
 
-export class AuthService {
-  static async signUp(email: string, password: string, userData: Partial<User>): Promise<User> {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const firebaseUser = userCredential.user;
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const uid = cred.user.uid;
 
-      const newUser: User = {
-        id: firebaseUser.uid,
-        email: firebaseUser.email!,
-        name: userData.name || '',
-        phone: userData.phone || '',
-        role: userData.role as 'passenger' | 'driver' | 'admin',
-        aadhaarNumber: userData.aadhaarNumber,
-        licenseNumber: userData.licenseNumber,
-        emergencyContacts: userData.emergencyContacts || [],
-        createdAt: new Date(),
-        updatedAt: new Date()
+    const ref = doc(db, "users", uid);
+    const snap = await getDoc(ref);
+
+    // AUTO FIX MISSING USER DOC
+    if (!snap.exists()) {
+      const fallback: User = {
+        id: uid,
+        email,
+        name: cred.user.displayName || "",
+        role: "passenger", // Default fallback
+        phone: "",
+        emergencyContacts: [],
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       };
 
-      await setDoc(doc(firestore, 'users', firebaseUser.uid), newUser);
-      return newUser;
-    } catch (error) {
-      throw new Error(`Sign up failed: ${error}`);
+      await setDoc(ref, fallback);
+      console.log("AUTO-CREATED USER DOC:", fallback.role);
+      return fallback;
     }
-  }
 
-  static async signIn(email: string, password: string): Promise<User> {
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const firebaseUser = userCredential.user;
+    let data = snap.data() as User;
 
-      const userDoc = await getDoc(doc(firestore, 'users', firebaseUser.uid));
-      if (!userDoc.exists()) {
-        throw new Error('User data not found');
+    // FIX MISSING ROLE
+    if (!data.role) {
+      // Try to determine role from license number if exists
+      if (data.licenseNumber) {
+        const licenseCheck = await this.verifyDriverLicense(data.licenseNumber);
+        if (licenseCheck.valid) {
+          data.role = "driver";
+          console.log("AUTO-ASSIGNED DRIVER ROLE FROM LICENSE");
+        } else {
+          data.role = "passenger";
+        }
+      } else {
+        data.role = "passenger";
       }
-
-      return userDoc.data() as User;
-    } catch (error) {
-      throw new Error(`Sign in failed: ${error}`);
+      
+      await updateDoc(ref, { role: data.role });
+      console.log("AUTO-FIXED ROLE:", data.role);
     }
+
+    return data;
   }
 
-  static async signOut(): Promise<void> {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      throw new Error(`Sign out failed: ${error}`);
-    }
-  }
+  // =========================
+  // CURRENT USER
+  // 🔥 CURRENT USER
+  // =========================
+  async getCurrentUser(): Promise<User | null> {
+    return new Promise((resolve) => {
+      const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+        unsub();
 
-  static async getCurrentUser(): Promise<User | null> {
-    const firebaseUser = auth.currentUser;
-    if (!firebaseUser) return null;
+        if (!firebaseUser) return resolve(null);
 
-    try {
-      const userDoc = await getDoc(doc(firestore, 'users', firebaseUser.uid));
-      if (!userDoc.exists()) return null;
+        const ref = doc(db, "users", firebaseUser.uid);
+        const snap = await getDoc(ref);
 
-      return userDoc.data() as User;
-    } catch (error) {
-      console.error('Error getting current user:', error);
-      return null;
-    }
-  }
+        if (!snap.exists()) return resolve(null);
 
-  static async verifyAadhaar(aadhaarNumber: string): Promise<AadhaarData | null> {
-    return aadhaarDatabase.find(data => data.aadhaarNumber === aadhaarNumber) || null;
-  }
-
-  static async verifyLicense(licenseNumber: string): Promise<DriverLicenseData | null> {
-    return licenseDatabase.find(data => data.licenseNumber === licenseNumber) || null;
-  }
-
-  static async updateUserProfile(userId: string, updates: Partial<User>): Promise<void> {
-    try {
-      await updateDoc(doc(firestore, 'users', userId), {
-        ...updates,
-        updatedAt: new Date()
+        resolve(snap.data() as User);
       });
-    } catch (error) {
-      throw new Error(`Profile update failed: ${error}`);
+    });
+  }
+
+  // =========================
+  // 🔥 SIGN OUT
+  // =========================
+  async signOut(): Promise<void> {
+    await signOut(auth);
+  }
+
+  // =========================
+  // 🔥 AADHAAR VERIFY (FIXED)
+  // =========================
+  async verifyAadhaar(aadhaarNumber: string): Promise<{
+    valid: boolean;
+    name: string;
+    gender: string;
+  }> {
+    console.log("AADHAAR:", aadhaarNumber);
+
+    if (!aadhaarNumber || aadhaarNumber.length !== 12) {
+      return { valid: false, name: "", gender: "" };
     }
+
+    const ref = doc(db, "aadhaar_users", aadhaarNumber);
+    const snap = await getDoc(ref);
+
+    if (!snap.exists()) {
+      return { valid: false, name: "", gender: "" };
+    }
+
+    const data = snap.data();
+
+    const gender = (data.gender || "").toLowerCase();
+
+    const valid =
+      data.verified === true &&
+      gender === "female";
+
+    return {
+      valid,
+      name: valid ? data.name : "",
+      gender
+    };
+  }
+
+  // =========================
+  // DRIVER LICENSE VERIFICATION
+  // =========================
+  async verifyDriverLicense(licenseNumber: string): Promise<{
+    valid: boolean;
+    name: string;
+    gender: string;
+    expiryDate?: string;
+    assignedBus?: string;
+  }> {
+    console.log("DRIVER LICENSE VERIFICATION:", licenseNumber);
+
+    if (!licenseNumber || licenseNumber.length < 8) {
+      return { valid: false, name: "", gender: "" };
+    }
+
+    const ref = doc(db, "driver_licenses", licenseNumber);
+    const snap = await getDoc(ref);
+
+    if (!snap.exists()) {
+      console.log("LICENSE NOT FOUND:", licenseNumber);
+      return { valid: false, name: "", gender: "" };
+    }
+
+    const data = snap.data();
+    console.log("LICENSE DATA:", data);
+
+    const gender = (data.gender || "").toLowerCase();
+
+    // Driver must be male and verified
+    const valid =
+      data.verified === true &&
+      gender === "male";
+
+    console.log("LICENSE VALIDATION:", { valid, gender, verified: data.verified });
+
+    return {
+      valid,
+      name: valid ? data.name : "",
+      gender,
+      expiryDate: data.expiryDate,
+      assignedBus: data.assignedBus
+    };
+  }
+
+  // =========================
+  // UPDATE USER PROFILE
+  // =========================
+  async updateUser(userId: string, updates: Partial<User>) {
+    console.log("UPDATING USER:", { userId, updates });
+    
+    try {
+      await updateDoc(doc(db, "users", userId), {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+      console.log("USER UPDATED SUCCESSFULLY");
+    } catch (error) {
+      console.log("UPDATE USER ERROR:", error);
+      throw error;
+    }
+  }
+
+  async updateUserProfile(userId: string, updates: Partial<User>) {
+    return this.updateUser(userId, updates);
+  }
+
+  // =========================
+  // ROLE SETTER (optional)
+  // =========================
+  async setUserRole(userId: string, role: "passenger" | "driver") {
+    await updateDoc(doc(db, "users", userId), {
+      role,
+      updatedAt: serverTimestamp()
+    });
   }
 }
+
+export default new AuthService();

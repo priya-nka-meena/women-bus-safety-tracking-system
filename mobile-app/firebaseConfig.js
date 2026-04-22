@@ -1,7 +1,18 @@
+// firebaseConfig.js
+
 import { initializeApp } from "firebase/app";
-import { initializeAuth, getReactNativePersistence } from "firebase/auth";
+
+// Auth (with persistence for React Native)
+import { getAuth, getReactNativePersistence } from "firebase/auth";
 import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
 
+// Realtime Database (for bus tracking)
+import { getDatabase } from "firebase/database";
+
+// Firestore (for Aadhaar / user verification)
+import { getFirestore } from "firebase/firestore";
+
+// 🔐 Your Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyCsq-AZBjTvfs7dZiGFyAE-kEYUWX_-kqo",
   authDomain: "women-bus-safety.firebaseapp.com",
@@ -13,10 +24,19 @@ const firebaseConfig = {
   measurementId: "G-QSVCPEH38R"
 };
 
+// 🚀 Initialize App
 const app = initializeApp(firebaseConfig);
 
-export const auth = initializeAuth(app, {
+// ✅ Auth (get existing auth or initialize with AsyncStorage persistence)
+export const auth = getAuth(app) || initializeAuth(app, {
   persistence: getReactNativePersistence(ReactNativeAsyncStorage),
 });
 
+// ✅ Realtime Database (bus tracking)
+export const database = getDatabase(app);
+
+// ✅ Firestore (Aadhaar / user data)
+export const db = getFirestore(app);
+
+// 📦 Export app
 export default app;

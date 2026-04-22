@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SOSService } from '../../services/sosService';
-import { AuthService } from '../../services/authService';
+import AuthService from '../../services/authService';
 import { LocationService } from '../../services/locationService';
 import { User, LocationData } from '../../types';
 

@@ -23,7 +23,8 @@
             "./assets/sounds/notification.wav"
           ]
         }
-      ]
+      ],
+      "expo-font"
     ],
     "splash": {
       "image": "./assets/splash-icon.png",

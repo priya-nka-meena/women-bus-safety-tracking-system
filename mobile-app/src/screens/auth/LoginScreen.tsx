@@ -11,7 +11,7 @@ import {
   Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { AuthService } from '../../services/authService';
+import AuthService from '../../services/authService';
 import { User } from '../../types';
 
 interface Props {
@@ -25,26 +25,39 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
 
   const handleLogin = async () => {
+    console.log("LOGIN ATTEMPT:", { email });
+    
     if (!email || !password) {
+      console.log("LOGIN ERROR: Empty fields");
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
     setLoading(true);
     try {
+      console.log("CALLING AUTH SERVICE...");
       const user = await AuthService.signIn(email, password);
+      console.log("LOGIN SUCCESS:", { id: user.id, name: user.name, role: user.role });
       
       // Navigate based on user role
       if (user.role === 'passenger') {
+        console.log("NAVIGATING TO PASSENGER TABS");
         navigation.replace('PassengerTabs');
       } else if (user.role === 'driver') {
+        console.log("NAVIGATING TO DRIVER TABS");
         navigation.replace('DriverTabs');
       } else if (user.role === 'admin') {
+        console.log("ADMIN LOGIN - SHOW INFO");
         // For admin, we would navigate to admin web dashboard
         Alert.alert('Info', 'Admin dashboard is web-based. Please access via browser.');
+      } else {
+        console.log("LOGIN ERROR: No valid role found");
+        Alert.alert('Error', 'User role not assigned. Please contact support.');
       }
-    } catch (error) {
-      Alert.alert('Login Failed', error instanceof Error ? error.message : 'An error occurred');
+    } catch (error: any) {
+      console.log("LOGIN ERROR:", error);
+      console.log("ERROR MESSAGE:", error.message);
+      Alert.alert('Login Failed', error.message);
     } finally {
       setLoading(false);
     }
